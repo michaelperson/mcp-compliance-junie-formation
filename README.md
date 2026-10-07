@@ -120,9 +120,82 @@ Montrer `.github/workflows/ci.yml` : build + tests + **SBOM CycloneDX** archivé
 - [ ] Persister les dossiers `open_cra_triage` (aujourd'hui : log d'audit uniquement) dans un outil de ticketing (Jira / Azure Boards) pour la preuve de délai.
 - [ ] Monitoring : alerte si le catalogue KEV passe `STALE` (> 48 h sans rafraîchissement).
 
-## Enrichissements proposés pour le cours
-1. **Remplacer la clé API par OAuth 2.1** + Protected Resource Metadata (spec MCP 2026-07-28 : CIMD au lieu de DCR, émetteur `iss` vérifié selon RFC 9207).
-2. **Elicitation MCP** : l'outil demande confirmation humaine avant une action sensible.
-3. ~~Outil `get_cve_status` branché sur OSV.dev~~ ✅ fait (v0.2). ~~Croisement CISA KEV + triage CRA~~ ✅ fait (v0.3). Étapes suivantes : `/v1/querybatch` pour un lockfile complet ; source EUVD (ENISA) ; score **EPSS** pour prioriser le non-KEV ; documents **VEX** (CycloneDX) pour déclarer « non affecté » quand le code vulnérable n'est pas atteignable.
-4. **ArchUnit** : test qui échoue si une `@Entity` est retournée par un `@RestController`.
-5. **Skills Junie** pour packager des procédures récurrentes (ex. « créer un endpoint conforme »).
+## Où retrouver les déclarations `declare_ai_assisted_change`
+
+L'outil n'écrit ni en base ni dans un fichier dédié : chaque appel produit **une ligne de journal** sur le logger `AI_AUDIT` du server et renvoie la même entrée à l'agent.
+
+**Ce qui est enregistré** (`AiAuditLog.record`) :
+
+| Champ | Contenu |
+|---|---|
+| `id` | UUID unique de la déclaration, à citer dans la PR ou le ticket |
+| `at` | Horodatage (renvoyé à l'agent ; dans la console, c'est l'horodatage de la ligne de log) |
+| `principal` | Identité authentifiée : toujours `junie-agent` avec la clé API partagée |
+| `tool` | `declare_ai_assisted_change` |
+| `detail` | `ticket=<ticketId> model=<modèle> summary=<résumé>`, tronqué à 200 caractères, retours ligne neutralisés (anti log injection, CWE-117) |
+
+Exemple :
+
+```text
+INFO … AI_AUDIT : id=3f1c…e9 principal=junie-agent tool=declare_ai_assisted_change detail=ticket=DIS-1234 model=gpt-5 summary=Ajout du champ phone chiffré et masqué
+```
+
+**Où la lire, du plus simple au plus robuste :**
+
+1. **La console du server** : le terminal où tourne `start-server.ps1` ou `mvn spring-boot:run`. C'est la preuve de référence pendant la formation. Elle disparaît à la fermeture du terminal.
+2. **Le chat Junie** : le détail de l'appel d'outil affiche l'entrée renvoyée (`id`, `at`, `principal`, `tool`, `detail`). Utile pour copier l'`id` dans la description de la PR, mais ce n'est **pas** une preuve : c'est l'agent qui l'affiche.
+3. **Un fichier de log**, pour garder une trace après redémarrage : Spring Boot écrit dans un fichier si la variable `LOGGING_FILE_NAME` est définie avant le démarrage.
+
+   ```powershell
+   $env:LOGGING_FILE_NAME = "logs/compliance-mcp.log"
+   pwsh ./scripts/start-server.ps1 -UpdateJunieConfig
+   # lister les déclarations
+   Select-String -Path compliance-mcp-server/logs/compliance-mcp.log -Pattern "tool=declare_ai_assisted_change"
+   ```
+
+   ```bash
+   LOGGING_FILE_NAME=logs/compliance-mcp.log ./mvnw spring-boot:run   # depuis compliance-mcp-server/
+   grep "tool=declare_ai_assisted_change" logs/compliance-mcp.log
+   ```
+
+   Le dossier `logs/` ne doit jamais être commité : il est exclu par le `.gitignore` du dépôt.
+4. **En production** : appender JSON vers le SIEM (Microsoft Sentinel, Elastic), rétention définie avec le RSSI. Exemple de requête Sentinel (KQL) :
+
+   ```kusto
+   ContainerLogs
+   | where LogEntry has "AI_AUDIT" and LogEntry has "tool=declare_ai_assisted_change"
+   | parse LogEntry with * "id=" Id " principal=" Principal " tool=" Tool " detail=ticket=" Ticket " model=" Model " summary=" Summary
+   | project TimeGenerated, Id, Principal, Ticket, Model, Summary
+   ```
+
+**Limites à connaître**
+
+- Le `principal` vaut toujours `junie-agent` : la clé API identifie l'outil, pas la personne. Le lien avec le développeur passe par le `ticketId` et l'auteur du commit ; OAuth 2.1 avec Entra ID donnerait l'identité réelle.
+- La déclaration dépend de l'agent : si Junie oublie l'appel, rien n'est écrit. `AGENTS.md` le rend probable, une vérification en CI (par exemple : tout commit lié à un ticket marqué « IA » doit avoir une ligne `AI_AUDIT` correspondante) le rendrait prouvable.
+- Aucune donnée personnelle dans `summary` : la description de l'outil le demande, et le journal est lu par l'équipe sécurité.
+
+## Glossaire
+
+| Terme | Signification | Dans ce kit |
+|---|---|---|
+| **AI Act** | Règlement européen 2024/1689 sur l'intelligence artificielle (calendrier modifié par le Digital Omnibus, JO du 24/07/2026) | Art. 4 (maîtrise de l'IA) et art. 50 (transparence) |
+| **CCB** | Centre pour la Cybersécurité Belgique : autorité nationale NIS2, CSIRT national (CERT.be) et CSIRT coordinateur belge pour le CRA | Destinataire des signalements CRA pour la Belgique |
+| **CRA** | Cyber Resilience Act, règlement (UE) 2024/2847 sur les produits comportant des éléments numériques. Art. 14 : signalement des vulnérabilités activement exploitées sous 24 h / 72 h / 14 jours, applicable depuis le 11/09/2026 ; application complète le 11/12/2027 | `open_cra_triage`, alerte `CRA_TRIAGE` |
+| **CSIRT** | Computer Security Incident Response Team : équipe nationale de réponse aux incidents | CCB / CERT.be |
+| **CVE** | Common Vulnerabilities and Exposures : identifiant public unique d'une vulnérabilité (ex. CVE-2021-44228, Log4Shell) | Renvoyé par `get_cve_status` |
+| **CWE** | Common Weakness Enumeration : catalogue des types de faiblesses (ex. CWE-89 injection SQL, CWE-798 secret en dur) | Règles citées par le reviewer |
+| **DPA** | Data Processing Agreement : contrat de sous-traitance RGPD (art. 28) avec un fournisseur qui traite des données pour vous. À ne pas confondre avec *Data Protection Authority*, l'autorité de contrôle (en Belgique : l'APD) | À exiger du fournisseur du modèle utilisé par Junie |
+| **DPO** | Data Protection Officer (délégué à la protection des données) : garant de la conformité RGPD et propriétaire du registre des traitements | Entité inconnue du registre → renvoi vers le DPO |
+| **ENISA / SRP** | Agence de l'UE pour la cybersécurité ; Single Reporting Platform, plateforme unique de signalement CRA ouverte le 11/09/2026 | Canal de notification CRA |
+| **Fail-closed** | En cas de doute ou de panne, on refuse plutôt que d'accepter | `UNKNOWN` si OSV ne répond pas, jamais `CLEAN` |
+| **KEV** | Known Exploited Vulnerabilities : catalogue de la CISA (agence américaine de cybersécurité) listant les CVE dont l'exploitation active est avérée | Chargé en mémoire, rafraîchi toutes les 6 h, `STALE` après 48 h |
+| **Match KEV** | Une CVE trouvée pour une dépendance figure dans le catalogue KEV : elle est exploitée quelque part dans le monde. Cela ne déclenche pas à lui seul une notification CRA : il faut un triage (produit livré, code présent, marché UE) | Verdict `EXPLOITED` → `open_cra_triage` |
+| **LRU** | Least Recently Used : politique de cache qui évince l'entrée utilisée le moins récemment quand le cache est plein | Le kit n'en fait pas : il vide tout le cache OSV quand il atteint `cacheMaxEntries`. En production : Caffeine (éviction W-TinyLFU, proche du LRU) |
+| **MCP** | Model Context Protocol : protocole standard qui expose des outils, ressources et prompts à un agent IA (spec 2026-07-28) | `compliance-mcp-server` |
+| **NIS2** | Directive (UE) 2022/2555 sur la cybersécurité, transposée en Belgique par la loi du 26/04/2024 (en vigueur le 18/10/2024) | Art. 21 : sécurité de la chaîne d'approvisionnement, journalisation |
+| **OSV** | Open Source Vulnerabilities : base et API publiques (osv.dev, Google) qui agrègent les avis de sécurité par écosystème (Maven, npm…) et version | `POST https://api.osv.dev/v1/query` |
+| **PSIRT** | Product Security Incident Response Team : équipe interne qui qualifie les vulnérabilités de vos produits et décide de notifier | Destinataire du dossier `open_cra_triage` |
+| **RGPD** | Règlement général sur la protection des données (UE) 2016/679 | Art. 25 (privacy by design), art. 30 (registre) |
+| **RSSI** | Responsable de la sécurité des systèmes d'information (en anglais : CISO) | Fixe les seuils de blocage et la rétention des journaux |
+| **SBOM** | Software Bill of Materials : inventaire de tous les composants d'un logiciel et de leurs versions (format CycloneDX ici) | `target/classes/META-INF/sbom/application.cdx.json`, archivé en CI |
+| **SIEM** | Security Information and Event Management : plateforme qui centralise et corrèle les journaux de sécurité (Sentinel, Elastic…) | Cible des logs `AI_AUDIT` et `CRA_TRIAGE` |
