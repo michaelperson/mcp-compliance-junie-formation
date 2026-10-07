@@ -1,0 +1,30 @@
+# Référentiel de conformité — source de vérité pour l'agent.
+# Propriétaires : DPO (data-catalog), RSSI (dependencies). Toute modif = PR + revue.
+compliance:
+  data-catalog:
+    Customer:
+      legal-basis: "Contrat (RGPD art. 6.1.b)"
+      retention: "Durée du contrat + 10 ans (obligation comptable)"
+      fields:
+        - { name: id,          category: INTERNAL,  encrypt-at-rest: false, mask-in-logs: false }
+        - { name: email,       category: PERSONAL,  encrypt-at-rest: true,  mask-in-logs: true }
+        - { name: phone,       category: PERSONAL,  encrypt-at-rest: true,  mask-in-logs: true }
+        - { name: nationalId,  category: SENSITIVE, encrypt-at-rest: true,  mask-in-logs: true }
+        - { name: createdAt,   category: INTERNAL,  encrypt-at-rest: false, mask-in-logs: false }
+    Patient:
+      legal-basis: "Soins de santé (RGPD art. 9.2.h) — AIPD obligatoire"
+      retention: "30 ans après le dernier contact (législation belge droits du patient)"
+      fields:
+        - { name: id,             category: INTERNAL,       encrypt-at-rest: false, mask-in-logs: false }
+        - { name: fullName,       category: PERSONAL,       encrypt-at-rest: true,  mask-in-logs: true }
+        - { name: diagnosis,      category: SPECIAL_ART9,   encrypt-at-rest: true,  mask-in-logs: true }
+
+  dependencies:
+    banned-licenses: [ "AGPL-3.0", "SSPL-1.0" ]
+    # Les CVE ne sont PLUS listées ici : l'outil get_cve_status interroge OSV.dev en live.
+    # Ici : uniquement des choix internes d'architecture / de sécurité.
+    banned:
+      - coordinates: "com.thoughtworks.xstream:xstream"
+        reason: "Interdite par la politique interne (désérialisation) — utiliser Jackson"
+      - coordinates: "commons-collections:commons-collections"
+        reason: "Branche 3.x abandonnée (gadgets de désérialisation) — utiliser commons-collections4"

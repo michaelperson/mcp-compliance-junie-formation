@@ -1,0 +1,54 @@
+spring:
+  application:
+    name: compliance-mcp
+  # Le référentiel de conformité est versionné à part : le DPO/RSSI le relit en PR
+  config:
+    import: classpath:compliance-policy.yml
+  ai:
+    mcp:
+      server:
+        name: compliance-mcp
+        version: 0.3.0
+        protocol: STATELESS         # Streamable HTTP sans session : POST /mcp uniquement, GET -> 405 (toléré par la spec)
+        type: SYNC
+        annotation-scanner:
+          enabled: true
+
+server:
+  # Spec MCP : un serveur local se lie à localhost (anti DNS-rebinding)
+  address: 127.0.0.1
+  port: 8085
+  error:
+    include-stacktrace: never
+    include-message: never
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+
+# Seul flux sortant autorisé du server (à refléter dans le firewall / proxy egress)
+osv:
+  base-url: https://api.osv.dev
+  connect-timeout: 3s
+  read-timeout: 10s
+  cache-ttl: 6h
+  max-pages: 3
+  max-vulns-returned: 15
+
+# Catalogue CISA Known Exploited Vulnerabilities (2e flux sortant autorisé)
+kev:
+  feed-url: https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json
+  refresh-interval: PT6H
+  max-staleness: 48h
+
+mcp:
+  security:
+    # Jamais en dur : injectée par variable d'environnement / Key Vault
+    api-key: ${COMPLIANCE_MCP_API_KEY:}
+    allowed-origins: ""       # liste CSV, vide = aucun navigateur autorisé
+
+logging:
+  level:
+    AI_AUDIT: INFO

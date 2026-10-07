@@ -1,0 +1,2 @@
+// ⚠️ À coller dans "dependencies" du package.json Angular : Junie doit appeler get_cve_status (NPM)
+"lodash": "4.17.15"

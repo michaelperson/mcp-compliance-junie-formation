@@ -1,0 +1,16 @@
+#!/bin/sh
+# Hook pre-commit : bloque tout commit dont les changements indexés contiennent un secret.
+# Activé par .githooks/install.ps1 (git config core.hooksPath .githooks).
+# Fail-closed : sans gitleaks, le commit est refusé plutôt que non contrôlé.
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "[pre-commit] gitleaks introuvable : commit refusé. Installer gitleaks >= 8.25 (voir .githooks/install.ps1)." >&2
+  exit 1
+fi
+gitleaks git --pre-commit --staged --redact --verbose --config .gitleaks.toml
+status=$?
+if [ $status -ne 0 ]; then
+  echo "" >&2
+  echo "[pre-commit] SECRET DÉTECTÉ : commit bloqué. Retirer le secret de l'index (git restore --staged <fichier>)." >&2
+  echo "[pre-commit] Si le secret a déjà été poussé ailleurs : le révoquer d'abord, nettoyer ensuite." >&2
+fi
+exit $status

@@ -1,0 +1,3 @@
+# Hooks et scripts shell : fins de ligne LF obligatoires (exécutés par le bash de Git for Windows)
+.githooks/* text eol=lf
+*.sh text eol=lf
