@@ -120,6 +120,20 @@ Montrer `.github/workflows/ci.yml` : build + tests + **SBOM CycloneDX** archivé
 - [ ] Persister les dossiers `open_cra_triage` (aujourd'hui : log d'audit uniquement) dans un outil de ticketing (Jira / Azure Boards) pour la preuve de délai.
 - [ ] Monitoring : alerte si le catalogue KEV passe `STALE` (> 48 h sans rafraîchissement).
 
+## Scripts fournis
+
+À lancer depuis la racine du dépôt.
+
+| Script | Rôle | Commande |
+|---|---|---|
+| `scripts/start-server.ps1` | Démarre le server avec une clé de 64 caractères générée à chaque lancement (jamais affichée en entier). Options : `-UpdateJunieConfig` écrit la clé dans `~/.junie/mcp/mcp.json`, `-AllowInspector -OpenInspector` ouvre MCP Inspector | `pwsh ./scripts/start-server.ps1 -AllowInspector -OpenInspector -UpdateJunieConfig` |
+| `scripts/verify.ps1` | Vérification de bout en bout sous Windows : build, tests, SBOM, refus sans clé, appels MCP, OSV et KEV. Attendu : 0 KO | `pwsh ./scripts/verify.ps1` |
+| `scripts/verify.sh` | Même vérification sous Linux, macOS ou Git Bash | `bash ./scripts/verify.sh` |
+
+Prérequis : JDK 21+, PowerShell 7 (`pwsh`) pour les `.ps1`, `curl` et un accès sortant vers `api.osv.dev` et `www.cisa.gov`.
+
+Sur la branche `start`, le code Java n'existe pas encore : `verify` échoue tant que Junie ne l'a pas généré. C'est normal, et c'est justement le test de fin de la séquence 2.
+
 ## Où retrouver les déclarations `declare_ai_assisted_change`
 
 L'outil n'écrit ni en base ni dans un fichier dédié : chaque appel produit **une ligne de journal** sur le logger `AI_AUDIT` du server et renvoie la même entrée à l'agent.
