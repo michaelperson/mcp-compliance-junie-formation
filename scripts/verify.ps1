@@ -57,7 +57,7 @@ try {
   if (-not $nk.HasExited) { Stop-Process $nk.Id; Ko 'Le server démarre sans clé (il devrait refuser)' } else { Ok 'Démarrage refusé sans clé' }
 
   Step '4. Démarrage avec clé'
-  $env:COMPLIANCE_MCP_API_KEY = -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+  $env:COMPLIANCE_MCP_API_KEY = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLower()   # CSPRNG, 256 bits
   $proc = Start-Process $java -ArgumentList '-jar', $jar.FullName -PassThru -NoNewWindow -RedirectStandardOutput $Log
   foreach ($i in 1..60) { try { if ((Invoke-RestMethod "$Base/actuator/health").status -eq 'UP') { break } } catch { Start-Sleep 1 } }
   try { if ((Invoke-RestMethod "$Base/actuator/health").status -eq 'UP') { Ok 'Health UP' } } catch { Ko "Server non joignable (log : $Log)"; throw 'stop' }

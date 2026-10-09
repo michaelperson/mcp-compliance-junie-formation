@@ -10,7 +10,7 @@ param([switch]$AllowInspector, [switch]$OpenInspector, [switch]$UpdateJunieConfi
 $Server = Join-Path (Split-Path -Parent $PSScriptRoot) 'compliance-mcp-server'
 
 if (-not $env:COMPLIANCE_MCP_API_KEY -or $env:COMPLIANCE_MCP_API_KEY.Length -lt 32) {
-  $env:COMPLIANCE_MCP_API_KEY = -join ((1..64) | ForEach-Object { '{0:x}' -f (Get-Random -Maximum 16) })
+  $env:COMPLIANCE_MCP_API_KEY = [Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)).ToLower()   # CSPRNG, 256 bits
   Write-Host 'Clé API générée pour cette session.' -ForegroundColor Green
 }
 $key = $env:COMPLIANCE_MCP_API_KEY

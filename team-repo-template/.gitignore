@@ -1,3 +1,8 @@
 .idea/
 *.iml
 .junie/mcp/mcp.json
+# Artefacts de build et dépendances : jamais versionnés
+target/
+node_modules/
+logs/
+*.log
