@@ -1,0 +1,13 @@
+spring:
+  application:
+    name: team-backend
+  datasource:
+    url: jdbc:h2:mem:team;DB_CLOSE_DELAY=-1
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    open-in-view: false
+
+server:
+  address: 127.0.0.1   # jamais 0.0.0.0 sur un poste de développement
+  port: 8080
